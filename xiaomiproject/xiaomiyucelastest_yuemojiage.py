@@ -94,14 +94,11 @@ class XiaomiTrendPredictor:
     def predict_future_trend(self, months=6):
         # 获取最新的收盘价
         last_price = self.df['Close'].iloc[-1]
-        
         # 获取最新的特征数据
         last_data = self.df[['SMA_5', 'SMA_20', 'RSI', 'Close', 'Volume']].iloc[-1].values.reshape(1, -1)
         last_data_scaled = self.scaler.transform(last_data)
-        
         # 预测趋势概率
         trend_prob = self.model.predict_proba(last_data_scaled)[0][1]
-        
         # 生成未来月份的日期（每月最后一天）
         last_date = self.df['Date'].iloc[-1]
         future_dates = []
@@ -120,22 +117,18 @@ class XiaomiTrendPredictor:
                 next_month = datetime(year, month + 1, 1)
             month_end = next_month - timedelta(days=1)
             future_dates.append(month_end)
-        
         # 基于历史波动性生成月度价格预测
         monthly_std = self.df['Close'].pct_change().std() * np.sqrt(21)  # 月度波动率
         np.random.seed(42)
         monthly_returns = np.random.normal(0, monthly_std, months)
-        
         # 根据预测趋势调整价格走向
         trend_adjustment = (trend_prob - 0.5) * 2  # 将概率转换为[-1, 1]范围的调整因子
         monthly_returns += trend_adjustment * monthly_std
-        
         # 计算预测价格
         predicted_prices = [last_price]
         for ret in monthly_returns:
             predicted_prices.append(predicted_prices[-1] * (1 + ret))
         predicted_prices = predicted_prices[1:]  # 移除初始价格
-        
         return future_dates, predicted_prices
         
     def plot_results(self, future_dates, predicted_prices):
@@ -160,7 +153,7 @@ class XiaomiTrendPredictor:
                     arrowprops=dict(arrowstyle='->'))
         
         # 第二个子图：月度预测价格
-        ax2.plot(future_dates, predicted_prices, 'ro-', label='Monthly Prediction', linewidth=2)
+        ax2.plot(future_dates, predicted_prices, 'ro-', label='Monthly yuemo Prediction', linewidth=2)
         ax2.set_title('Xiaomi Stock Price Prediction (Next 6 Months)', pad=15)
         ax2.set_xlabel('Date')
         ax2.set_ylabel('Predicted Price (HKD)')

@@ -94,77 +94,57 @@ class XiaomiTrendPredictor:
     def predict_future_trend(self, months=6):
         # 获取最新的收盘价
         last_price = self.df['Close'].iloc[-1]
-        
         # 获取最新的特征数据
         last_data = self.df[['SMA_5', 'SMA_20', 'RSI', 'Close', 'Volume']].iloc[-1].values.reshape(1, -1)
         last_data_scaled = self.scaler.transform(last_data)
-        
         # 预测趋势概率
         trend_prob = self.model.predict_proba(last_data_scaled)[0][1]
-        
         # 生成2025年1月到6月的日期
         future_dates = []
         start_year = 2025
         for month in range(1, 7):  # 1到6月
             month_start = datetime(start_year, month, 1)
             future_dates.append(month_start)
-        
         # 基于历史数据计算参数
         monthly_std = self.df['Close'].pct_change().std() * np.sqrt(21)  # 月度波动率
         monthly_mean = self.df['Close'].pct_change().mean() * 21  # 月度平均收益率
-        
         np.random.seed(42)
-        
         # 生成更自然的价格序列
         predicted_prices = [last_price]
-        
         # 生成基础趋势
         base_trend = (trend_prob - 0.5) * 2 * monthly_std
-        
         for i in range(months):
             # 综合多个因素生成价格变化
-            
             # 1. 趋势因子 (考虑整体趋势)
             trend_factor = base_trend + monthly_mean
-            
             # 2. 周期性因子 (添加市场周期性波动)
             cycle_factor = np.sin(2 * np.pi * i / 6) * monthly_std * 0.5
-            
             # 3. 随机波动因子 (模拟市场随机性)
             random_factor = np.random.normal(0, monthly_std * 0.3)
-            
             # 4. 动量因子 (考虑前期走势的影响)
             momentum_factor = 0
             if i > 0:
                 prev_return = (predicted_prices[-1] / predicted_prices[-2] - 1)
                 momentum_factor = prev_return * 0.3
-            
             # 5. 均值回归因子 (防止价格偏离过远)
             reversion_factor = (last_price - predicted_prices[-1]) * 0.1
-            
             # 合并所有因子
             total_return = (trend_factor + 
                            cycle_factor + 
                            random_factor + 
                            momentum_factor + 
                            reversion_factor)
-            
             # 限制单月最大变化幅度
             max_monthly_change = 0.12  # 12%
             total_return = np.clip(total_return, -max_monthly_change, max_monthly_change)
-            
             # 计算新价格
             next_price = predicted_prices[-1] * (1 + total_return)
-            
             # 确保价格不会低于历史最低价的50%或高于历史最高价的150%
             hist_min = self.df['Close'].min() * 0.5
             hist_max = self.df['Close'].max() * 1.5
             next_price = np.clip(next_price, hist_min, hist_max)
-            
             predicted_prices.append(next_price)
-        
         predicted_prices = predicted_prices[1:]  # 移除初始价格
-        
         return future_dates, predicted_prices
         
     def plot_results(self, future_dates, predicted_prices):
@@ -189,7 +169,7 @@ class XiaomiTrendPredictor:
                     arrowprops=dict(arrowstyle='->'))
         
         # 第二个子图：月度预测价格
-        ax2.plot(future_dates, predicted_prices, 'ro-', label='Monthly Prediction', linewidth=2)
+        ax2.plot(future_dates, predicted_prices, 'ro-', label='Monthly yuechu Prediction', linewidth=2)
         ax2.set_title('Xiaomi Stock Price Prediction (Next 6 Months)', pad=15)
         ax2.set_xlabel('Date')
         ax2.set_ylabel('Predicted Price (HKD)')

@@ -94,62 +94,43 @@ class XiaomiTrendPredictor:
     def predict_future_trend(self, months=6):
         # 获取最新的收盘价
         last_price = self.df['Close'].iloc[-1]
-        
         # 获取最新的特征数据
         last_data = self.df[['SMA_5', 'SMA_20', 'RSI', 'Close', 'Volume']].iloc[-1].values.reshape(1, -1)
         last_data_scaled = self.scaler.transform(last_data)
-        
         # 预测趋势概率
         trend_prob = self.model.predict_proba(last_data_scaled)[0][1]
-        
-        # 生成未来月份的日期
+        # 修改生成未来月份的日期逻辑
         last_date = self.df['Date'].iloc[-1]
         future_dates = []
-        for i in range(1, months + 1):
-            if last_date.month + i > 12:
-                year = last_date.year + (last_date.month + i - 1) // 12
-                month = (last_date.month + i - 1) % 12 + 1
-            else:
-                year = last_date.year
-                month = last_date.month + i
-            if month == 12:
-                next_month = datetime(year + 1, 1, 1)
-            else:
-                next_month = datetime(year, month + 1, 1)
-            month_end = next_month - timedelta(days=1)
-            future_dates.append(month_end)
-        
+        # 从2025年1月开始生成日期
+        start_year = 2025
+        for i in range(months):
+            month = i + 1  # 从1月开始
+            future_date = datetime(start_year, month, 1)
+            future_dates.append(future_date)
         # 计算历史月度波动特征
         monthly_std = self.df['Close'].pct_change().std() * np.sqrt(21)
         monthly_mean = self.df['Close'].pct_change().mean() * np.sqrt(21)
-        
         # 使用随机游走模型生成更自然的价格序列
         np.random.seed(42)
         predicted_prices = [last_price]
-        
         # 基于历史数据和趋势预测生成每月均值
         for i in range(months):
             # 基础趋势
             base_trend = monthly_mean
-            
             # 趋势调整（基于模型预测）
             if trend_prob > 0.5:
                 trend_adjust = (trend_prob - 0.5) * monthly_std
             else:
                 trend_adjust = (trend_prob - 0.5) * monthly_std
-                
             # 随机波动（考虑历史波动性）
             random_factor = np.random.normal(0, monthly_std * 0.5)
-            
             # 季节性因素（添加一些周期性）
             seasonal_factor = np.sin(2 * np.pi * i / 6) * monthly_std * 0.3
-            
             # 合并所有因素
             total_return = base_trend + trend_adjust + random_factor + seasonal_factor
-            
             # 计算新的价格
             next_price = predicted_prices[-1] * (1 + total_return)
-            
             # 确保价格不会出现极端值
             max_change = 0.15  # 最大月度变化率
             if abs((next_price - predicted_prices[-1]) / predicted_prices[-1]) > max_change:
@@ -159,10 +140,8 @@ class XiaomiTrendPredictor:
                     next_price = predicted_prices[-1] * (1 - max_change)
             
             predicted_prices.append(next_price)
-        
         # 移除初始价格
         predicted_prices = predicted_prices[1:]
-        
         return future_dates, predicted_prices
         
     def plot_results(self, future_dates, predicted_prices):
@@ -199,7 +178,7 @@ class XiaomiTrendPredictor:
         
         # 在每个预测点添加价格标注
         for i, (date, price) in enumerate(zip(future_dates, predicted_prices)):
-            month_name = date.strftime('%B')  # 获取月份名称
+            month_name = date.strftime('%Y-%m')  # 修改为年份-月份格式
             ax2.annotate(f'{month_name}\n{price:.2f}', 
                         xy=(date, price),
                         xytext=(0, 10), 

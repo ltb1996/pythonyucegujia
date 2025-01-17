@@ -156,76 +156,57 @@ class MaotaiTrendPredictor:
     def predict_future_trend(self, month=6, days=30):
         # 获取最新的收盘价
         last_price = self.df['Close'].iloc[-1]
-        
         # 生成6月份的日期序列（1号到30号）
         current_year = datetime.now().year
         future_dates = [datetime(current_year, month, day) for day in range(1, days + 1)]
-        
         # 获取最新的特征数据
         last_data = self.df[['SMA_5', 'SMA_20', 'RSI', 'Close', 'Volume']].iloc[-1].values.reshape(1, -1)
         last_data_scaled = self.scaler.transform(last_data)
-        
         # 预测趋势概率
         trend_prob = self.model.predict_proba(last_data_scaled)[0][1]
-        
         # 使用更小的波动率来生成更平滑的价格变动
         daily_std = self.df['Close'].pct_change().std() * 0.5
-        
         # 生成更平滑的价格序列
         predicted_prices = [last_price]
         current_trend = 1 if trend_prob > 0.5 else -1
         trend_change_points = np.random.choice(range(5, 25), size=4)
-        
         # 添加小随机因子以避免重复值
         random_factors = np.random.uniform(-0.0001, 0.0001, days)
-        
         for i in range(days):
             if i in trend_change_points:
                 current_trend *= -1
-            
             # 生成基础波动
             base_return = np.random.normal(0, daily_std)
-            
             # 添加趋势影响
             trend_impact = current_trend * daily_std * 0.8
-            
             # 计算总回报率（加入小随机因子）
             total_return = base_return + trend_impact + random_factors[i]
-            
             # 确保价格变动不会太大
             total_return = np.clip(total_return, -daily_std * 2, daily_std * 2)
-            
             # 计算新价格
             new_price = predicted_prices[-1] * (1 + total_return)
-            
             # 确保价格不重复
             while any(abs(p - new_price) < 0.01 for p in predicted_prices):
                 random_adjustment = np.random.uniform(-0.02, 0.02)
                 new_price *= (1 + random_adjustment)
-            
             predicted_prices.append(new_price)
-        
         predicted_prices = predicted_prices[1:]
-        
         # 对于周末的价格，使用稍微调整的前一个交易日价格
         for i, date in enumerate(future_dates):
             if date.weekday() >= 5:  # 周六或周日
                 base_price = predicted_prices[i-1]
                 small_adjustment = np.random.uniform(-0.02, 0.02)
                 predicted_prices[i] = base_price * (1 + small_adjustment)
-        
         # 确保最终价格不会偏离太远
         max_change = 0.1
         final_change = (predicted_prices[-1] - last_price) / last_price
         if abs(final_change) > max_change:
             adjustment_factor = max_change / abs(final_change)
             predicted_prices = [last_price + (p - last_price) * adjustment_factor for p in predicted_prices]
-            
             # 再次确保没有重复值
             for i in range(1, len(predicted_prices)):
                 while any(abs(predicted_prices[j] - predicted_prices[i]) < 0.01 for j in range(i)):
                     predicted_prices[i] *= (1 + np.random.uniform(-0.01, 0.01))
-        
         # 保留两位小数，但确保没有重复值
         predicted_prices = [round(price, 2) for price in predicted_prices]
         for i in range(1, len(predicted_prices)):

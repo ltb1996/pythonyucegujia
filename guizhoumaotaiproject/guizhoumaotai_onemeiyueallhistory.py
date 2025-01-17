@@ -276,7 +276,7 @@ class MaotaiTrendPredictor:
             
             # 第二个子图：6月份预测价格
             ax2.plot(future_dates, predicted_prices, 'ro-', label='6月预测', linewidth=2)
-            ax2.set_title('贵州茅台股票价格（2024年6月预测）', pad=15, fontproperties='SimHei')
+            ax2.set_title('贵州茅台股票价格（2025年6月预测）', pad=15, fontproperties='SimHei')
             ax2.set_xlabel('日期', fontproperties='SimHei')
             ax2.set_ylabel('预测价格 (元)', fontproperties='SimHei')
             
@@ -339,7 +339,7 @@ def main():
     print(f'\n当前价格: {current_price:.2f}')
     
     # 输出6月份每日预测价格
-    print("\n2024年6月预测价格:")
+    print("\n2025年6月预测价格:")
     for date, price in zip(future_dates, predicted_prices):
         print(f"{date.strftime('%Y-%m-%d')}: {price:.2f}")
     

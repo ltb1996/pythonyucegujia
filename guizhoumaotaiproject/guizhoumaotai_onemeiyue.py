@@ -316,7 +316,10 @@ class MaotaiTrendPredictor:
             raise
 
 def main():
-    predictor = MaotaiTrendPredictor(r'd:\benkeshengxm\pythonyucegujia\guizhoumaotaiproject\maotai.csv')
+    # 使用相对路径，提高代码可移植性
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(script_dir, 'maotai.csv')
+    predictor = MaotaiTrendPredictor(csv_path)
     predictor.load_data()
     predictor.create_features()
     

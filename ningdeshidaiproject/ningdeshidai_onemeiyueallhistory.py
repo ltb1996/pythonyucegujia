@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 import os
 
-class MaotaiTrendPredictor:
+class NingdeshidaiTrendPredictor:
     def __init__(self, csv_path):
         self.csv_path = csv_path
         self.model = RandomForestClassifier(n_estimators=100, random_state=42)
@@ -35,40 +35,81 @@ class MaotaiTrendPredictor:
         print("CSV文件列名:", self.df.columns.tolist())
         
         # 删除包含"数据来源"的行
-        self.df = self.df[~self.df['日期'].str.contains('数据来源', na=False)]
+        if '日期' in self.df.columns:
+            self.df = self.df[~self.df['日期'].astype(str).str.contains('数据来源', na=False)]
         print("删除数据来源行后的行数:", len(self.df))
         
-        # 重命名列
+        # 重命名列 - 适配300750.csv的列名格式
         column_mapping = {
             '日期': 'Date',
             '开盘': 'Open',
             '收盘': 'Close',
-            '最高': 'High',
-            '最低': 'Low',
-            '成交量': 'Volume',
+            '高': 'High',
+            '低': 'Low',
+            '交易量': 'Volume',
+            '成交量': 'Volume',  # 兼容两种情况
             '成交额': 'Amount',
             '涨跌幅': 'Change_Pct'
         }
         
-        self.df = self.df.rename(columns=column_mapping)
+        # 只重命名存在的列
+        existing_columns = {k: v for k, v in column_mapping.items() if k in self.df.columns}
+        self.df = self.df.rename(columns=existing_columns)
+        
+        # 转换日期列（支持多种日期格式）
+        if 'Date' in self.df.columns:
+            # 先尝试指定格式，如果失败则自动推断
+            try:
+                self.df['Date'] = pd.to_datetime(self.df['Date'], errors='coerce', format='%Y/%m/%d')
+            except:
+                self.df['Date'] = pd.to_datetime(self.df['Date'], errors='coerce')
+        print("日期转换后的行数:", len(self.df))
         
         # 转换数值列
-        numeric_columns = ['Open', 'Close', 'High', 'Low', 'Volume', 'Amount', 'Change_Pct']
-        for col in numeric_columns:
-            # 移除可能的逗号和空格
+        # 处理开盘价、收盘价、最高、最低
+        price_columns = ['Open', 'Close', 'High', 'Low']
+        for col in price_columns:
             if col in self.df.columns:
                 self.df[col] = self.df[col].astype(str).str.replace(',', '').str.strip()
                 self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
         
+        # 处理交易量（可能包含'M'后缀表示百万）
+        if 'Volume' in self.df.columns:
+            self.df['Volume'] = self.df['Volume'].astype(str).str.replace(',', '').str.strip()
+            # 处理M后缀（百万）
+            mask_m = self.df['Volume'].str.contains('M', case=False, na=False)
+            self.df.loc[mask_m, 'Volume'] = pd.to_numeric(
+                self.df.loc[mask_m, 'Volume'].str.replace('M', '', case=False), 
+                errors='coerce'
+            ) * 1000000
+            # 处理其他情况
+            mask_other = ~mask_m
+            self.df.loc[mask_other, 'Volume'] = pd.to_numeric(self.df.loc[mask_other, 'Volume'], errors='coerce')
+        
+        # 处理成交额（如果存在）
+        if 'Amount' in self.df.columns:
+            self.df['Amount'] = self.df['Amount'].astype(str).str.replace(',', '').str.strip()
+            # 处理M后缀
+            mask_m = self.df['Amount'].str.contains('M', case=False, na=False)
+            self.df.loc[mask_m, 'Amount'] = pd.to_numeric(
+                self.df.loc[mask_m, 'Amount'].str.replace('M', '', case=False), 
+                errors='coerce'
+            ) * 1000000
+            mask_other = ~mask_m
+            self.df.loc[mask_other, 'Amount'] = pd.to_numeric(self.df.loc[mask_other, 'Amount'], errors='coerce')
+        
+        # 处理涨跌幅（可能包含%符号）
+        if 'Change_Pct' in self.df.columns:
+            self.df['Change_Pct'] = self.df['Change_Pct'].astype(str).str.replace('%', '').str.replace(',', '').str.strip()
+            self.df['Change_Pct'] = pd.to_numeric(self.df['Change_Pct'], errors='coerce')
+        
         print("数值转换后的行数:", len(self.df))
         
-        # 转换日期列
-        self.df['Date'] = pd.to_datetime(self.df['Date'], errors='coerce')
-        print("日期转换后的行数:", len(self.df))
-        
-        # 删除包含空值的行
-        self.df = self.df.dropna()
-        print("删除空值后的行数:", len(self.df))
+        # 只删除关键列为空的行（Date, Close, Open, High, Low, Volume）
+        key_columns = ['Date', 'Close', 'Open', 'High', 'Low', 'Volume']
+        existing_key_columns = [col for col in key_columns if col in self.df.columns]
+        self.df = self.df.dropna(subset=existing_key_columns)
+        print("删除关键列空值后的行数:", len(self.df))
         
         # 检查是否有重复的日期
         duplicates = self.df['Date'].duplicated()
@@ -227,7 +268,7 @@ class MaotaiTrendPredictor:
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             
-            save_path = os.path.join(save_dir, 'maotai_trend_prediction_june_allhistory.png')
+            save_path = os.path.join(save_dir, 'ningdeshidai_trend_prediction_june_allhistory.png')
             
             # 创建图表
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
@@ -235,7 +276,7 @@ class MaotaiTrendPredictor:
             # 第一个子图：修改为显示全部历史价格
             all_data = self.df  # 使用全部数据而不是仅使用最近60天
             ax1.plot(all_data['Date'], all_data['Close'], label='历史价格', color='blue', linewidth=2)
-            ax1.set_title('贵州茅台股票价格（全部历史）', pad=15, fontproperties='SimHei')
+            ax1.set_title('宁德时代股票价格（全部历史）', pad=15, fontproperties='SimHei')
             ax1.set_xlabel('日期', fontproperties='SimHei')
             ax1.set_ylabel('股票价格 (元)', fontproperties='SimHei')
             ax1.legend(loc='upper left', prop={'family':'SimHei'})
@@ -257,7 +298,7 @@ class MaotaiTrendPredictor:
             
             # 第二个子图：6月份预测价格
             ax2.plot(future_dates, predicted_prices, 'ro-', label='6月预测', linewidth=2)
-            ax2.set_title('贵州茅台股票价格（2025年6月预测）', pad=15, fontproperties='SimHei')
+            ax2.set_title('宁德时代股票价格（2026年6月预测）', pad=15, fontproperties='SimHei')
             ax2.set_xlabel('日期', fontproperties='SimHei')
             ax2.set_ylabel('预测价格 (元)', fontproperties='SimHei')
             
@@ -304,8 +345,8 @@ class MaotaiTrendPredictor:
 def main():
     # 使用相对路径，提高代码可移植性
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(script_dir, 'maotai.csv')
-    predictor = MaotaiTrendPredictor(csv_path)
+    csv_path = os.path.join(script_dir, '300750.csv')
+    predictor = NingdeshidaiTrendPredictor(csv_path)
     predictor.load_data()
     predictor.create_features()
     
@@ -316,14 +357,14 @@ def main():
     # 预测6月份的股价
     future_dates, predicted_prices = predictor.predict_future_trend(month=6, days=30)
     predictor.plot_results(future_dates, predicted_prices)
-    print('预测图表已保存为 maotai_trend_prediction_june_allhistory.png')
+    print('预测图表已保存为 ningdeshidai_trend_prediction_june_allhistory.png')
     
     # 输出当前价格
     current_price = predictor.df['Close'].iloc[-1]
     print(f'\n当前价格: {current_price:.2f}')
     
     # 输出6月份每日预测价格
-    print("\n2025年6月预测价格:")
+    print("\n2026年6月预测价格:")
     for date, price in zip(future_dates, predicted_prices):
         print(f"{date.strftime('%Y-%m-%d')}: {price:.2f}")
     

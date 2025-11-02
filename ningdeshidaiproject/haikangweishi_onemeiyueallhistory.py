@@ -9,15 +9,15 @@ from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 import os
 
-class NingdeshidaiTrendPredictor:
+class HaikangweishiTrendPredictor:
     def __init__(self, csv_path):
         self.csv_path = csv_path
         self.model = RandomForestClassifier(n_estimators=100, random_state=42)
         self.scaler = MinMaxScaler()
         
     def load_data(self):
-        # 尝试多种编码格式
-        encodings = ['utf-8', 'gbk', 'gb2312', 'gb18030', 'utf-16', 'latin1']
+        # 尝试多种编码格式（优先尝试中文编码）
+        encodings = ['gbk', 'gb2312', 'gb18030', 'utf-8', 'utf-16', 'latin1', 'cp936']
         
         for encoding in encodings:
             try:
@@ -39,13 +39,15 @@ class NingdeshidaiTrendPredictor:
             self.df = self.df[~self.df['日期'].astype(str).str.contains('数据来源', na=False)]
         print("删除数据来源行后的行数:", len(self.df))
         
-        # 重命名列 - 适配300750.csv的列名格式
+        # 重命名列 - 适配CSV的列名格式
         column_mapping = {
             '日期': 'Date',
             '开盘': 'Open',
             '收盘': 'Close',
             '高': 'High',
+            '最高': 'High',  # 兼容"最高"
             '低': 'Low',
+            '最低': 'Low',  # 兼容"最低"
             '交易量': 'Volume',
             '成交量': 'Volume',  # 兼容两种情况
             '成交额': 'Amount',
@@ -268,7 +270,7 @@ class NingdeshidaiTrendPredictor:
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
             
-            save_path = os.path.join(save_dir, 'ningdeshidai_trend_prediction_june_allhistory.png')
+            save_path = os.path.join(save_dir, 'haikangweishi_trend_prediction_june_allhistory.png')
             
             # 创建图表
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
@@ -276,7 +278,7 @@ class NingdeshidaiTrendPredictor:
             # 第一个子图：修改为显示全部历史价格
             all_data = self.df  # 使用全部数据而不是仅使用最近60天
             ax1.plot(all_data['Date'], all_data['Close'], label='历史价格', color='blue', linewidth=2)
-            ax1.set_title('宁德时代股票价格（全部历史）', pad=15, fontproperties='SimHei')
+            ax1.set_title('海康威视股票价格（全部历史）', pad=15, fontproperties='SimHei')
             ax1.set_xlabel('日期', fontproperties='SimHei')
             ax1.set_ylabel('股票价格 (元)', fontproperties='SimHei')
             ax1.legend(loc='upper left', prop={'family':'SimHei'})
@@ -298,7 +300,7 @@ class NingdeshidaiTrendPredictor:
             
             # 第二个子图：6月份预测价格
             ax2.plot(future_dates, predicted_prices, 'ro-', label='6月预测', linewidth=2)
-            ax2.set_title('宁德时代股票价格（2026年6月预测）', pad=15, fontproperties='SimHei')
+            ax2.set_title('海康威视股票价格（2026年6月预测）', pad=15, fontproperties='SimHei')
             ax2.set_xlabel('日期', fontproperties='SimHei')
             ax2.set_ylabel('预测价格 (元)', fontproperties='SimHei')
             
@@ -345,8 +347,8 @@ class NingdeshidaiTrendPredictor:
 def main():
     # 使用相对路径，提高代码可移植性
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(script_dir, '300750.csv')
-    predictor = NingdeshidaiTrendPredictor(csv_path)
+    csv_path = os.path.join(script_dir, '002415.csv')
+    predictor = HaikangweishiTrendPredictor(csv_path)
     predictor.load_data()
     predictor.create_features()
     
@@ -357,7 +359,7 @@ def main():
     # 预测6月份的股价
     future_dates, predicted_prices = predictor.predict_future_trend(month=6, days=30)
     predictor.plot_results(future_dates, predicted_prices)
-    print('预测图表已保存为 ningdeshidai_trend_prediction_june_allhistory.png')
+    print('预测图表已保存为 haikangweishi_trend_prediction_june_allhistory.png')
     
     # 输出当前价格
     current_price = predictor.df['Close'].iloc[-1]
